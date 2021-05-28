@@ -270,9 +270,9 @@ StringRef* StringRef::createFromASCII(const char* s, size_t len)
     return toRef(new ASCIIString(s, len));
 }
 
-StringRef* StringRef::createFromUTF8(const char* s, size_t len)
+StringRef* StringRef::createFromUTF8(const char* s, size_t len, bool maybeASCII)
 {
-    return toRef(String::fromUTF8(s, len));
+    return toRef(String::fromUTF8(s, len, maybeASCII));
 }
 
 StringRef* StringRef::createFromUTF16(const char16_t* s, size_t len)
@@ -310,9 +310,9 @@ bool StringRef::isCompressibleStringEnabled()
 }
 
 #if defined(ENABLE_COMPRESSIBLE_STRING)
-StringRef* StringRef::createFromUTF8ToCompressibleString(VMInstanceRef* instance, const char* s, size_t len)
+StringRef* StringRef::createFromUTF8ToCompressibleString(VMInstanceRef* instance, const char* s, size_t len, bool maybeASCII)
 {
-    return toRef(String::fromUTF8ToCompressibleString(toImpl(instance), s, len));
+    return toRef(String::fromUTF8ToCompressibleString(toImpl(instance), s, len, maybeASCII));
 }
 
 StringRef* StringRef::createFromUTF16ToCompressibleString(VMInstanceRef* instance, const char16_t* s, size_t len)
@@ -1082,7 +1082,7 @@ ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(ValueRef* value)
 
 ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(ValueRef* value, bool writable)
     : m_privateData(new (GC) ObjectPropertyDescriptor(toImpl(value),
-                                                      (ObjectPropertyDescriptor::PresentAttribute)((writable ? ObjectPropertyDescriptor::WritablePresent : 0) | ObjectPropertyDescriptor::ValuePresent)))
+                                                      (ObjectPropertyDescriptor::PresentAttribute)((writable ? ObjectPropertyDescriptor::WritablePresent : ObjectPropertyDescriptor::NonWritablePresent) | ObjectPropertyDescriptor::ValuePresent)))
 {
 }
 
@@ -1120,7 +1120,7 @@ ValueRef* ObjectPropertyDescriptorRef::getter() const
 
 bool ObjectPropertyDescriptorRef::hasGetter() const
 {
-    return ((ObjectPropertyDescriptor*)m_privateData)->hasJSGetter();
+    return !hasValue() && ((ObjectPropertyDescriptor*)m_privateData)->hasJSGetter();
 }
 
 ValueRef* ObjectPropertyDescriptorRef::setter() const
@@ -1130,7 +1130,7 @@ ValueRef* ObjectPropertyDescriptorRef::setter() const
 
 bool ObjectPropertyDescriptorRef::hasSetter() const
 {
-    return ((ObjectPropertyDescriptor*)m_privateData)->hasJSSetter();
+    return !hasValue() && ((ObjectPropertyDescriptor*)m_privateData)->hasJSSetter();
 }
 
 bool ObjectPropertyDescriptorRef::isEnumerable() const
@@ -1150,12 +1150,12 @@ bool ObjectPropertyDescriptorRef::hasEnumerable() const
 
 void ObjectPropertyDescriptorRef::setConfigurable(bool configurable)
 {
-    ((ObjectPropertyDescriptor*)m_privateData)->setEnumerable(configurable);
+    ((ObjectPropertyDescriptor*)m_privateData)->setConfigurable(configurable);
 }
 
 bool ObjectPropertyDescriptorRef::isConfigurable() const
 {
-    return ((ObjectPropertyDescriptor*)m_privateData)->isConfigurablePresent();
+    return ((ObjectPropertyDescriptor*)m_privateData)->isConfigurable();
 }
 
 bool ObjectPropertyDescriptorRef::hasConfigurable() const

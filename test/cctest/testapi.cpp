@@ -875,3 +875,66 @@ TEST(ObjectPropertyDescriptor, Basic1) {
         EXPECT_FALSE(desc.isWritable());
     }
 }
+
+TEST(RegExp, Basic1)
+{
+    Evaluator::execute(g_context.get(), [](ExecutionStateRef* state) -> ValueRef* {
+        auto re = RegExpObjectRef::create(state, StringRef::createFromASCII("foo"),
+                                          RegExpObjectRef::RegExpObjectOption::None);
+        EXPECT_TRUE(re->isRegExpObject());
+        EXPECT_TRUE(re->source()->equals(StringRef::createFromASCII("foo")));
+        EXPECT_TRUE(re->option() == RegExpObjectRef::RegExpObjectOption::None);
+
+        re = RegExpObjectRef::create(state, StringRef::createFromASCII("bar"),
+                                     (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::IgnoreCase | RegExpObjectRef::RegExpObjectOption::Global));
+        EXPECT_TRUE(re->isRegExpObject());
+        EXPECT_TRUE(re->source()->equals(StringRef::createFromASCII("bar")));
+        EXPECT_TRUE(re->option() == (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::IgnoreCase | RegExpObjectRef::RegExpObjectOption::Global));
+
+        re = RegExpObjectRef::create(state, StringRef::createFromASCII("baz"),
+                                     (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::IgnoreCase | RegExpObjectRef::RegExpObjectOption::MultiLine));
+        EXPECT_TRUE(re->isRegExpObject());
+        EXPECT_TRUE(re->source()->equals(StringRef::createFromASCII("baz")));
+        EXPECT_TRUE(re->option() == (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::IgnoreCase | RegExpObjectRef::RegExpObjectOption::MultiLine));
+
+        re = RegExpObjectRef::create(state, StringRef::createFromASCII("baz"),
+                                     (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::Unicode | RegExpObjectRef::RegExpObjectOption::Sticky));
+        EXPECT_TRUE(re->isRegExpObject());
+        EXPECT_TRUE(re->source()->equals(StringRef::createFromASCII("baz")));
+        EXPECT_TRUE(re->option() == (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::Unicode | RegExpObjectRef::RegExpObjectOption::Sticky));
+
+        re = RegExpObjectRef::create(state, StringRef::createFromASCII("foobar"), RegExpObjectRef::RegExpObjectOption::None);
+        EXPECT_TRUE(re->isRegExpObject());
+        EXPECT_TRUE(re->source()->equals(StringRef::createFromASCII("foobar")));
+        EXPECT_TRUE(re->option() == RegExpObjectRef::RegExpObjectOption::None);
+
+        re = RegExpObjectRef::create(state, StringRef::createFromASCII("foobarbaz"),
+                                     (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::IgnoreCase | RegExpObjectRef::RegExpObjectOption::MultiLine));
+        EXPECT_TRUE(re->isRegExpObject());
+        EXPECT_TRUE(re->source()->equals(StringRef::createFromASCII("foobarbaz")));
+        EXPECT_TRUE(re->option() == (RegExpObjectRef::RegExpObjectOption)(RegExpObjectRef::RegExpObjectOption::IgnoreCase | RegExpObjectRef::RegExpObjectOption::MultiLine));
+
+        return ValueRef::createUndefined();
+    });
+}
+
+TEST(RegExp, Basic2)
+{
+    Evaluator::execute(g_context.get(), [](ExecutionStateRef* state) -> ValueRef* {
+        auto re = RegExpObjectRef::create(state, StringRef::createFromASCII("a.c"),
+                                          RegExpObjectRef::RegExpObjectOption::None);
+        EXPECT_TRUE(re->isRegExpObject());
+        {
+            RegExpObjectRef::RegexMatchResult result;
+            EXPECT_TRUE(re->match(state, StringRef::createFromASCII("abc"), result, false, 0));
+            EXPECT_TRUE(result.m_matchResults.size() == 1);
+        }
+        {
+            RegExpObjectRef::RegexMatchResult result;
+            EXPECT_FALSE(re->match(state, StringRef::createFromASCII("abd"), result, false, 0));
+            EXPECT_TRUE(result.m_matchResults.size() == 0);
+        }
+
+        return ValueRef::createUndefined();
+    });
+}

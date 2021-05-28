@@ -712,6 +712,16 @@ public:
     {
     }
 
+    virtual void* onMallocArrayBufferObjectDataBuffer(size_t sizeInByte) override
+    {
+        return m_platform->onMallocArrayBufferObjectDataBuffer(sizeInByte);
+    }
+
+    virtual void onFreeArrayBufferObjectDataBuffer(void* buffer, size_t sizeInByte) override
+    {
+        m_platform->onFreeArrayBufferObjectDataBuffer(buffer, sizeInByte);
+    }
+
     virtual void markJSJobEnqueued(Context* relatedContext) override
     {
         m_platform->markJSJobEnqueued(toRef(relatedContext));
@@ -2702,6 +2712,16 @@ bool BooleanObjectRef::primitiveValue()
 RegExpObjectRef* RegExpObjectRef::create(ExecutionStateRef* state, ValueRef* source, ValueRef* option)
 {
     return toRef(new RegExpObject(*toImpl(state), toImpl(source).toString(*toImpl(state)), toImpl(option).toString(*toImpl(state))));
+}
+
+RegExpObjectRef* RegExpObjectRef::create(ExecutionStateRef* state, ValueRef* source, RegExpObjectOption option)
+{
+    return toRef(new RegExpObject(*toImpl(state), toImpl(source).toString(*toImpl(state)), option));
+}
+
+bool RegExpObjectRef::match(ExecutionStateRef* state, ValueRef* str, RegExpObjectRef::RegexMatchResult& result, bool testOnly, size_t startIndex)
+{
+    return toImpl(this)->match(*toImpl(state), toImpl(str).toString(*toImpl(state)), (Escargot::RegexMatchResult&)result, testOnly, startIndex);
 }
 
 StringRef* RegExpObjectRef::source()

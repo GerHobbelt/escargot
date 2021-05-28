@@ -1051,35 +1051,48 @@ void ValueVectorRef::resize(size_t newSize)
     toImpl(this)->resize(newSize);
 }
 
+void* ObjectPropertyDescriptorRef::operator new(size_t size)
+{
+    return GC_MALLOC(size);
+}
+
+void ObjectPropertyDescriptorRef::operator delete(void* ptr)
+{
+    // destructor of ObjectPropertyDescriptorRef is implicitly invoked
+    GC_FREE(ptr);
+}
+
 ObjectPropertyDescriptorRef::~ObjectPropertyDescriptorRef()
 {
+    ASSERT(!!m_privateData);
     ((ObjectPropertyDescriptor*)m_privateData)->~ObjectPropertyDescriptor();
     GC_FREE(m_privateData);
+    m_privateData = nullptr;
 }
 
 ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(void* src)
-    : m_privateData(new (UseGC) ObjectPropertyDescriptor(*((ObjectPropertyDescriptor*)src)))
+    : m_privateData(new (GC) ObjectPropertyDescriptor(*((ObjectPropertyDescriptor*)src)))
 {
 }
 
 ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(ValueRef* value)
-    : m_privateData(new (UseGC) ObjectPropertyDescriptor(toImpl(value), ObjectPropertyDescriptor::ValuePresent))
+    : m_privateData(new (GC) ObjectPropertyDescriptor(toImpl(value), ObjectPropertyDescriptor::ValuePresent))
 {
 }
 
 ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(ValueRef* value, bool writable)
-    : m_privateData(new (UseGC) ObjectPropertyDescriptor(toImpl(value),
-                                                         (ObjectPropertyDescriptor::PresentAttribute)((writable ? ObjectPropertyDescriptor::WritablePresent : 0) | ObjectPropertyDescriptor::ValuePresent)))
+    : m_privateData(new (GC) ObjectPropertyDescriptor(toImpl(value),
+                                                      (ObjectPropertyDescriptor::PresentAttribute)((writable ? ObjectPropertyDescriptor::WritablePresent : 0) | ObjectPropertyDescriptor::ValuePresent)))
 {
 }
 
 ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(ValueRef* getter, ValueRef* setter)
-    : m_privateData(new (UseGC) ObjectPropertyDescriptor(JSGetterSetter(toImpl(getter), toImpl(setter)), ObjectPropertyDescriptor::NotPresent))
+    : m_privateData(new (GC) ObjectPropertyDescriptor(JSGetterSetter(toImpl(getter), toImpl(setter)), ObjectPropertyDescriptor::NotPresent))
 {
 }
 
 ObjectPropertyDescriptorRef::ObjectPropertyDescriptorRef(const ObjectPropertyDescriptorRef& src)
-    : m_privateData(new (UseGC) ObjectPropertyDescriptor(*((ObjectPropertyDescriptor*)src.m_privateData)))
+    : m_privateData(new (GC) ObjectPropertyDescriptor(*((ObjectPropertyDescriptor*)src.m_privateData)))
 {
 }
 
@@ -1372,7 +1385,7 @@ ValueRef* ObjectRef::getIndexedProperty(ExecutionStateRef* state, ValueRef* prop
 
 bool ObjectRef::setIndexedProperty(ExecutionStateRef* state, ValueRef* property, ValueRef* value)
 {
-    return toImpl(this)->setIndexedProperty(*toImpl(state), toImpl(property), toImpl(value));
+    return toImpl(this)->setIndexedProperty(*toImpl(state), toImpl(property), toImpl(value), toImpl(this));
 }
 
 bool ObjectRef::has(ExecutionStateRef* state, ValueRef* propertyName)
@@ -2519,7 +2532,7 @@ ArrayObjectRef* ArrayObjectRef::create(ExecutionStateRef* state, ValueVectorRef*
     ArrayObject* ret = new ArrayObject(*toImpl(state), sourceSize);
 
     for (size_t i = 0; i < sourceSize; i++) {
-        ret->setIndexedProperty(*toImpl(state), Value(i), toImpl(source->at(i)));
+        ret->setIndexedProperty(*toImpl(state), Value(i), toImpl(source->at(i)), ret);
     }
 
     return toRef(ret);

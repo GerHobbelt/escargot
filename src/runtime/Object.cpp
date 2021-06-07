@@ -128,7 +128,27 @@ Value ObjectGetResult::valueSlowCase(ExecutionState& state, const Value& receive
     return Value();
 }
 
-Value ObjectGetResult::toPropertyDescriptor(ExecutionState& state, const Value& receiver)
+ObjectPropertyDescriptor ObjectGetResult::convertToPropertyDescriptor(ExecutionState& state, const Value& receiver)
+{
+    ASSERT(hasValue());
+    ObjectPropertyDescriptor desc;
+
+    if (isDataProperty()) {
+        desc = ObjectPropertyDescriptor(this->value(state, receiver));
+        desc.setWritable(isWritable());
+    } else {
+        desc = ObjectPropertyDescriptor(*this->jsGetterSetter(), ObjectPropertyDescriptor::NotPresent);
+    }
+
+    desc.setEnumerable(isEnumerable());
+    desc.setConfigurable(isConfigurable());
+
+    ASSERT(desc.checkProperty());
+    return desc;
+}
+
+// https://262.ecma-international.org/#sec-frompropertydescriptor
+Value ObjectGetResult::fromPropertyDescriptor(ExecutionState& state, const Value& receiver)
 {
     // If Desc is undefined, then return undefined.
     if (!hasValue()) {
@@ -224,7 +244,7 @@ ObjectPropertyDescriptor::ObjectPropertyDescriptor(ExecutionState& state, Object
         ErrorObject::throwBuiltinError(state, ErrorObject::TypeError, "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute");
     }
 
-    checkProperty();
+    ASSERT(checkProperty());
 }
 
 void ObjectPropertyDescriptor::setEnumerable(bool enumerable)
@@ -593,7 +613,7 @@ void Object::markAsPrototypeObject(ExecutionState& state)
     }
 }
 
-ObjectGetResult Object::getOwnProperty(ExecutionState& state, const ObjectPropertyName& propertyName) ESCARGOT_OBJECT_SUBCLASS_MUST_REDEFINE
+ObjectGetResult Object::getOwnProperty(ExecutionState& state, const ObjectPropertyName& propertyName)
 {
     if (propertyName.isUIntType() && !m_structure->hasIndexPropertyName()) {
         return ObjectGetResult();
@@ -620,7 +640,7 @@ ObjectGetResult Object::getOwnProperty(ExecutionState& state, const ObjectProper
     return ObjectGetResult();
 }
 
-bool Object::defineOwnProperty(ExecutionState& state, const ObjectPropertyName& P, const ObjectPropertyDescriptor& desc) ESCARGOT_OBJECT_SUBCLASS_MUST_REDEFINE
+bool Object::defineOwnProperty(ExecutionState& state, const ObjectPropertyName& P, const ObjectPropertyDescriptor& desc)
 {
     if (UNLIKELY(isEverSetAsPrototypeObject() && !state.context()->vmInstance()->didSomePrototypeObjectDefineIndexedProperty() && P.isIndexString())) {
         state.context()->vmInstance()->somePrototypeObjectDefineIndexedProperty(state);
@@ -800,7 +820,7 @@ bool Object::defineOwnProperty(ExecutionState& state, const ObjectPropertyName& 
     }
 }
 
-bool Object::deleteOwnProperty(ExecutionState& state, const ObjectPropertyName& P) ESCARGOT_OBJECT_SUBCLASS_MUST_REDEFINE
+bool Object::deleteOwnProperty(ExecutionState& state, const ObjectPropertyName& P)
 {
     auto result = getOwnProperty(state, P);
     if (result.hasValue() && result.isConfigurable()) {
@@ -812,7 +832,7 @@ bool Object::deleteOwnProperty(ExecutionState& state, const ObjectPropertyName& 
     return true;
 }
 
-void Object::enumeration(ExecutionState& state, bool (*callback)(ExecutionState& state, Object* self, const ObjectPropertyName&, const ObjectStructurePropertyDescriptor& desc, void* data), void* data, bool shouldSkipSymbolKey) ESCARGOT_OBJECT_SUBCLASS_MUST_REDEFINE
+void Object::enumeration(ExecutionState& state, bool (*callback)(ExecutionState& state, Object* self, const ObjectPropertyName&, const ObjectStructurePropertyDescriptor& desc, void* data), void* data, bool shouldSkipSymbolKey)
 {
     const ObjectStructureItem* propertiesVector;
     propertiesVector = m_structure->properties();
@@ -1170,9 +1190,10 @@ bool Object::setIntegrityLevel(ExecutionState& state, Object* O, bool isSealed)
             ObjectGetResult currentDesc = O->getOwnProperty(state, ObjectPropertyName(state, keys[i]));
             if (currentDesc.isConfigurable()) {
                 // Perform ? DefinePropertyOrThrow(O, k, PropertyDescriptor { [[Configurable]]: false }).
-                Object* newDesc = currentDesc.toPropertyDescriptor(state, O).asObject();
-                newDesc->setThrowsException(state, ObjectPropertyName(state, state.context()->staticStrings().configurable), Value(false), newDesc);
-                O->defineOwnPropertyThrowsException(state, ObjectPropertyName(state, keys[i]), ObjectPropertyDescriptor(state, newDesc));
+                ObjectPropertyDescriptor newDesc = currentDesc.convertToPropertyDescriptor(state, O);
+                newDesc.setConfigurable(false);
+
+                O->defineOwnPropertyThrowsException(state, ObjectPropertyName(state, keys[i]), newDesc);
             }
         }
     } else {
@@ -1184,18 +1205,14 @@ bool Object::setIntegrityLevel(ExecutionState& state, Object* O, bool isSealed)
             // If currentDesc is not undefined, then
             if (currentDesc.hasValue()) {
                 if (currentDesc.isConfigurable() || (currentDesc.isDataProperty() && currentDesc.isWritable())) {
-                    Object* newDesc = currentDesc.toPropertyDescriptor(state, O).asObject();
-                    if (currentDesc.isConfigurable()) {
-                        // Let desc be the PropertyDescriptor { [[Configurable]]: false }.
-                        newDesc->setThrowsException(state, ObjectPropertyName(state, state.context()->staticStrings().configurable), Value(false), newDesc);
+                    // Let desc be the PropertyDescriptor { [[Configurable]]: false, [[Writable]]: false }.
+                    ObjectPropertyDescriptor newDesc = currentDesc.convertToPropertyDescriptor(state, O);
+                    newDesc.setConfigurable(false);
+                    if (currentDesc.isDataProperty()) {
+                        newDesc.setWritable(false);
                     }
-                    if (currentDesc.isDataProperty() && currentDesc.isWritable()) {
-                        // Let desc be the PropertyDescriptor { [[Configurable]]: false, [[Writable]]: false }.
-                        newDesc->setThrowsException(state, ObjectPropertyName(state, state.context()->staticStrings().writable), Value(false), newDesc);
-                    }
-
                     // Perform ? DefinePropertyOrThrow(O, k, desc).
-                    O->defineOwnPropertyThrowsException(state, ObjectPropertyName(state, keys[i]), ObjectPropertyDescriptor(state, newDesc));
+                    O->defineOwnPropertyThrowsException(state, ObjectPropertyName(state, keys[i]), newDesc);
                 }
             }
         }
